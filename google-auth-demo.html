@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Google Auth Persistente</title>
+    <!-- Script Oficial de Google Identity Services -->
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <style>
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            display: flex; justify-content: center; align-items: center; 
+            height: 100vh; background-color: #f8fafc; margin: 0; 
+        }
+        .card { 
+            background: white; padding: 2.5rem 2rem; border-radius: 16px; 
+            box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); 
+            text-align: center; max-width: 400px; width: 100%; 
+        }
+        .hidden { display: none !important; }
+        
+        /* Estilos del Perfil */
+        #user-profile img { 
+            border-radius: 50%; width: 90px; height: 90px; 
+            margin-bottom: 1rem; border: 3px solid #e2e8f0; 
+        }
+        #profile-name { margin: 0 0 0.5rem 0; color: #0f172a; }
+        #profile-email { color: #64748b; margin: 0 0 2rem 0; font-size: 0.9rem; }
+        
+        button { 
+            background-color: #ef4444; color: white; border: none; 
+            padding: 10px 24px; border-radius: 8px; cursor: pointer; 
+            font-size: 1rem; font-weight: 600; transition: background 0.2s; 
+        }
+        button:hover { background-color: #dc2626; }
+        
+        /* Centrar el botón de Google usando flexbox */
+        #google-btn-wrapper { display: flex; justify-content: center; margin-top: 1.5rem; }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <!-- Contenedor de Autenticación (Botón de Login) -->
+    <div id="auth-container">
+        <h2>Bienvenido</h2>
+        <p style="color: #64748b;">Inicia sesión para continuar</p>
+        
+        <!-- Configuración HTML de Google API -->
+        <div id="g_id_onload"
+             data-client_id="517715923776-rl4o0vhajsu70qgm0d1j6d87ug88fbdr.apps.googleusercontent.com"
+             data-callback="handleCredentialResponse"
+             data-auto_prompt="false">
+        </div>
+        
+        <!-- El botón renderizado de Google -->
+        <div id="google-btn-wrapper">
+            <div class="g_id_signin"
+                 data-type="standard"
+                 data-size="large"
+                 data-theme="outline"
+                 data-text="sign_in_with"
+                 data-shape="rectangular"
+                 data-logo_alignment="left">
+            </div>
+        </div>
+    </div>
+
+    <!-- Contenedor del Perfil de Usuario (Oculto por defecto) -->
+    <div id="user-profile" class="hidden">
+        <img id="profile-pic" src="" alt="Foto de Perfil" referrerpolicy="no-referrer">
+        <h3 id="profile-name"></h3>
+        <p id="profile-email"></p>
+        <button onclick="cerrarSesion()">Cerrar Sesión</button>
+    </div>
+</div>
+
+<script>
+    /**
+     * 1. Función para decodificar el Token JWT (JSON Web Token)
+     * Desglosa el token en Base64 y extrae el payload (datos del usuario).
+     */
+    function decodificarJwt(token) {
+        try {
+            const base64Url = token.split('.')[1];
+            const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+            const jsonPayload = decodeURIComponent(window.atob(base64).split('').map(function(c) {
+                return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+            }).join(''));
+
+            return JSON.parse(jsonPayload);
+        } catch (error) {
+            console.error("Error al decodificar el token JWT:", error);
+            return null;
+        }
+    }
+
+    /**
+     * 2. Callback principal ejecutado por Google tras un login exitoso.
+     */
+    function handleCredentialResponse(response) {
+        // response.credential contiene el JWT en formato string
+        const payload = decodificarJwt(response.credential);
+        
+        if (payload) {
+            // Extraemos los datos solicitados
+            const datosUsuario = {
+                nombre: payload.name,
+                email: payload.email,
+                foto: payload.picture,
+                token: response.credential // Opcional, por si necesitas enviarlo al backend
+            };
+            
+            // Persistencia: Guardamos los datos en LocalStorage (como string JSON)
+            localStorage.setItem('usuario_google', JSON.stringify(datosUsuario));
+            
+            // Actualizamos la interfaz para mostrar el perfil
+            mostrarPerfil(datosUsuario);
+        }
+    }
+
+    /**
+     * 3. Lógica de Interfaz Dinámica: 
+     * Oculta el contenedor de login y muestra el perfil.
+     */
+    function mostrarPerfil(usuario) {
+        document.getElementById('auth-container').classList.add('hidden');
+        document.getElementById('user-profile').classList.remove('hidden');
+        
+        document.getElementById('profile-name').textContent = "Hola, " + usuario.nombre;
+        document.getElementById('profile-email').textContent = usuario.email;
+        // referrerpolicy="no-referrer" en el HTML evita bloqueos de carga (errores 403) de fotos de Google
+        document.getElementById('profile-pic').src = usuario.foto;
+    }
+
+    /**
+     * 4. Función para cerrar sesión.
+     */
+    function cerrarSesion() {
+        // Limpiamos los datos locales
+        localStorage.removeItem('usuario_google');
+        
+        // Indicamos a Google revocar o deseleccionar la cuenta para evitar auto-login agresivos
+        if (window.google) {
+            window.google.accounts.id.disableAutoSelect();
+        }
+        
+        // Recargamos la página para restaurar el estado inicial (Botón de login)
+        window.location.reload();
+    }
+
+    /**
+     * 5. Al cargar la ventana (window.onload): Verifica persistencia.
+     */
+    window.onload = function() {
+        // Verificamos si ya hay un usuario guardado
+        const usuarioGuardadoStr = localStorage.getItem('usuario_google');
+        
+        if (usuarioGuardadoStr) {
+            const usuarioGuardado = JSON.parse(usuarioGuardadoStr);
+            // Mostrar directamente el perfil, el botón de Google se ocultará
+            mostrarPerfil(usuarioGuardado);
+        }
+        // Nota: Si no hay usuario, simplemente no hacemos nada.
+        // Google mostrará el botón de inicio de sesión automáticamente en su div asociado.
+    };
+</script>
+
+</body>
+</html>
