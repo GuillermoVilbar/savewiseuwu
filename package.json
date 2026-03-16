@@ -1,16 +1,7 @@
 {
-  "name": "savewise-backend",
-  "version": "1.0.0",
-  "description": "Backend for SaveWise 2FA",
-  "main": "server.js",
-  "scripts": {
-    "start": "node server.js",
-    "dev": "node server.js"
-  },
   "dependencies": {
-    "cors": "^2.8.6",
-    "dotenv": "^16.6.1",
-    "express": "^4.22.1",
-    "nodemailer": "^6.10.1"
+    "axios": "^1.13.6",
+    "bcrypt": "^6.0.0",
+    "sqlite3": "^6.0.1"
   }
 }
